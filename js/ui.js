@@ -213,20 +213,36 @@ var UI = {
         var statusColor = Network.connected ? '#22c55e' : PALETTE.textWarn;
         var statusIcon = Network.connected ? '●' : '○';
         var statusLabel = Network.connected ? t('connected') + ' — Startar...' : t('waiting');
-        drawTextCentered(ctx, statusIcon + ' ' + statusLabel, w / 2, h * 0.7,
+        drawTextCentered(ctx, statusIcon + ' ' + statusLabel, w / 2, h * 0.65,
             '16px monospace', statusColor);
 
-        // Klickbar Avbryt-knapp
-        var cancelX = w / 2 - 80;
-        var cancelY = h - 50;
-        ctx.globalAlpha = 0.08;
-        pixelRect(ctx, cancelX, cancelY, 160, 32, PALETTE.textMuted);
-        ctx.globalAlpha = 1.0;
-        drawTextCentered(ctx, 'Avbryt', w / 2, cancelY + 16,
-            '14px monospace', PALETTE.textMuted);
+        // Felmeddelande om det finns
+        if (Network._error) {
+            drawTextCentered(ctx, Network._error, w / 2, h * 0.72,
+                '12px monospace', PALETTE.textWarn);
+        }
 
-        registerClickRegion('lobby_cancel', cancelX, cancelY, 160, 32, function() {
+        // Stor tydlig Avbryt-knapp
+        var cancelX = w / 2 - 120;
+        var cancelY = h * 0.82;
+        var cancelW = 240;
+        var cancelH = 44;
+        ctx.globalAlpha = 0.12;
+        pixelRect(ctx, cancelX, cancelY, cancelW, cancelH, PALETTE.textWarn);
+        ctx.globalAlpha = 1.0;
+        drawTextCentered(ctx, '✕ Avbryt och tillbaka', w / 2, cancelY + cancelH / 2,
+            '16px monospace', PALETTE.textWarn);
+
+        registerClickRegion('lobby_cancel', cancelX, cancelY, cancelW, cancelH, function() {
             UI._lobbyCancel = true;
+        });
+
+        // Nödknapp: ladda om sidan
+        var reloadY = cancelY + cancelH + 12;
+        drawTextCentered(ctx, 'Fastnat? Klicka här för att ladda om', w / 2, reloadY + 8,
+            '11px monospace', PALETTE.textMuted);
+        registerClickRegion('lobby_reload', w / 2 - 150, reloadY - 4, 300, 20, function() {
+            window.location.reload();
         });
     },
 

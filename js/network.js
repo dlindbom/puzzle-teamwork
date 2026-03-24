@@ -7,9 +7,31 @@ var Network = {
     roomCode: '',
     connected: false,
     _messageQueue: [],
-    _onConnectCallback: null,
     _statusText: '',
     _error: '',
+    _debug: [],
+
+    _log: function(msg) {
+        console.log('[Network] ' + msg);
+        this._debug.push(msg);
+        if (this._debug.length > 10) this._debug.shift();
+    },
+
+    /**
+     * PeerJS-konfiguration med STUN-servrar.
+     */
+    _peerConfig: {
+        debug: 1,
+        config: {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' }
+            ]
+        }
+    },
 
     /**
      * Skapa ett rum (host).
@@ -18,55 +40,57 @@ var Network = {
         var self = this;
 
         if (typeof Peer === 'undefined') {
-            self._error = 'PeerJS kunde inte laddas. Ladda om sidan med Ctrl+Shift+R';
+            self._error = 'PeerJS kunde inte laddas. Ladda om sidan.';
             if (callback) callback();
             return;
         }
 
-        // Rensa eventuell gammal anslutning
         self._cleanup();
-
         self.isHost = true;
         self.roomCode = self._generateCode();
         self._statusText = t('connecting');
         self._error = '';
+        self._log('Skapar rum: ' + self.roomCode);
 
         try {
-            self.peer = new Peer('puzzleteam-' + self.roomCode, { debug: 0 });
+            self.peer = new Peer('puzzleteam-' + self.roomCode, self._peerConfig);
         } catch (e) {
             self._error = 'Kunde inte skapa rum: ' + e.message;
+            self._log('Fel: ' + e.message);
             if (callback) callback();
             return;
         }
 
-        self.peer.on('open', function() {
+        self.peer.on('open', function(id) {
+            self._log('Peer öppen med ID: ' + id);
             self._statusText = t('roomCode') + ': ' + self.roomCode;
             if (callback) callback();
         });
 
         self.peer.on('connection', function(conn) {
+            self._log('Inkommande anslutning från gäst');
             self.conn = conn;
-            self._setupConnection(conn);
+            self._setupDataConnection(conn);
         });
 
         self.peer.on('error', function(err) {
-            console.error('PeerJS host error:', err);
+            self._log('Host peer error: ' + err.type + ' - ' + err.message);
             if (err.type === 'unavailable-id') {
-                // Rumskoden var tagen — försök igen med ny kod
                 self.roomCode = self._generateCode();
-                if (self.peer) self.peer.destroy();
+                self._log('Rumskod tagen, ny: ' + self.roomCode);
+                if (self.peer) { try { self.peer.destroy(); } catch(e) {} }
                 self.peer = null;
                 self.createRoom(callback);
             } else {
-                self._error = 'Anslutningsfel: ' + (err.type || err.message || 'okänt');
+                self._error = 'Fel: ' + (err.type || err.message);
                 self._statusText = self._error;
             }
         });
 
         self.peer.on('disconnected', function() {
-            // Försök återansluta
+            self._log('Peer disconnected, försöker reconnect...');
             if (self.peer && !self.peer.destroyed) {
-                self.peer.reconnect();
+                try { self.peer.reconnect(); } catch(e) {}
             }
         });
     },
@@ -76,66 +100,68 @@ var Network = {
      */
     joinRoom: function(code, callback) {
         var self = this;
+        var callbackFired = false;
+
+        function fireCallback(success) {
+            if (!callbackFired && callback) {
+                callbackFired = true;
+                callback(success);
+            }
+        }
 
         if (typeof Peer === 'undefined') {
-            self._error = 'PeerJS kunde inte laddas. Ladda om sidan med Ctrl+Shift+R';
-            if (callback) callback(false);
+            self._error = 'PeerJS kunde inte laddas. Ladda om sidan.';
+            fireCallback(false);
             return;
         }
 
-        // Rensa eventuell gammal anslutning
         self._cleanup();
-
         self.isHost = false;
         self.roomCode = code;
         self._statusText = t('connecting');
         self._error = '';
+        self._log('Ansluter till rum: ' + code);
 
         try {
-            self.peer = new Peer(null, { debug: 0 });
+            self.peer = new Peer(null, self._peerConfig);
         } catch (e) {
-            self._error = 'Kunde inte ansluta: ' + e.message;
-            if (callback) callback(false);
+            self._error = 'Kunde inte starta: ' + e.message;
+            self._log('Peer create error: ' + e.message);
+            fireCallback(false);
             return;
         }
 
-        self.peer.on('open', function() {
+        // Timeout: 15 sekunder
+        var connectTimeout = setTimeout(function() {
+            self._log('Timeout efter 15s');
+            self._error = 'Timeout — kunde inte nå rum ' + code + '. Är koden rätt?';
+            self._statusText = self._error;
+            fireCallback(false);
+        }, 15000);
+
+        self.peer.on('open', function(id) {
+            self._log('Gäst-peer öppen: ' + id + ', ansluter till puzzleteam-' + code);
             var conn;
             try {
                 conn = self.peer.connect('puzzleteam-' + code, { reliable: true });
             } catch (e) {
+                clearTimeout(connectTimeout);
                 self._error = 'Kunde inte ansluta till rum ' + code;
-                if (callback) callback(false);
+                self._log('Connect error: ' + e.message);
+                fireCallback(false);
                 return;
             }
 
             self.conn = conn;
 
-            // Timeout: om anslutningen inte öppnas inom 8 sekunder
-            var connectTimeout = setTimeout(function() {
-                if (!self.connected) {
-                    self._error = 'Timeout — kunde inte nå rum ' + code + '. Kontrollera koden.';
-                    self._statusText = self._error;
-                    if (callback) {
-                        callback(false);
-                        callback = null; // Förhindra dubbelanrop
-                    }
-                }
-            }, 8000);
-
             conn.on('open', function() {
                 clearTimeout(connectTimeout);
+                self._log('Anslutning öppen!');
                 self.connected = true;
                 self._statusText = t('connected');
                 self._error = '';
-
-                // Skicka hello
                 conn.send({ type: 'hello', playerName: 'P2' });
-
-                if (callback) {
-                    callback(true);
-                    callback = null;
-                }
+                fireCallback(true);
                 if (window._gameOnConnect) window._gameOnConnect();
             });
 
@@ -144,55 +170,46 @@ var Network = {
             });
 
             conn.on('close', function() {
-                clearTimeout(connectTimeout);
+                self._log('Anslutning stängd');
                 self.connected = false;
                 self._statusText = t('disconnected');
             });
 
             conn.on('error', function(err) {
                 clearTimeout(connectTimeout);
-                console.error('Connection error:', err);
+                self._log('Connection error: ' + err.type + ' - ' + err.message);
                 self.connected = false;
-                self._error = 'Anslutningsfel: ' + (err.type || err.message || 'okänt');
+                self._error = 'Anslutningsfel: ' + (err.type || err.message);
                 self._statusText = self._error;
-                if (callback) {
-                    callback(false);
-                    callback = null;
-                }
+                fireCallback(false);
             });
         });
 
         self.peer.on('error', function(err) {
-            console.error('PeerJS guest error:', err);
+            clearTimeout(connectTimeout);
+            self._log('Guest peer error: ' + err.type + ' - ' + err.message);
             var msg = 'Kunde inte ansluta';
             if (err.type === 'peer-unavailable') {
-                msg = 'Rum "' + code + '" hittades inte. Kontrollera koden.';
+                msg = 'Rum "' + code + '" finns inte. Kolla att koden stämmer!';
             } else if (err.type === 'network') {
-                msg = 'Nätverksfel — kontrollera din internetanslutning.';
+                msg = 'Nätverksfel — kolla din internetanslutning.';
             } else {
                 msg = 'Fel: ' + (err.type || err.message);
             }
             self._error = msg;
             self._statusText = msg;
-            if (callback) {
-                callback(false);
-                callback = null;
-            }
+            fireCallback(false);
         });
     },
 
-    _setupConnection: function(conn) {
+    _setupDataConnection: function(conn) {
         var self = this;
 
         conn.on('open', function() {
+            self._log('Host: data-anslutning öppen');
             self.connected = true;
             self._statusText = t('connected');
             self._error = '';
-
-            if (self._onConnectCallback) {
-                self._onConnectCallback(true);
-                self._onConnectCallback = null;
-            }
             if (window._gameOnConnect) window._gameOnConnect();
         });
 
@@ -201,12 +218,13 @@ var Network = {
         });
 
         conn.on('close', function() {
+            self._log('Host: anslutning stängd');
             self.connected = false;
             self._statusText = t('disconnected');
         });
 
         conn.on('error', function(err) {
-            console.error('Connection error:', err);
+            self._log('Host connection error: ' + err);
             self.connected = false;
         });
     },
@@ -223,9 +241,6 @@ var Network = {
         return msgs;
     },
 
-    /**
-     * Intern cleanup utan att nollställa allt.
-     */
     _cleanup: function() {
         if (this.conn) {
             try { this.conn.close(); } catch(e) {}
@@ -239,10 +254,8 @@ var Network = {
         this._messageQueue = [];
     },
 
-    /**
-     * Koppla ner helt.
-     */
     disconnect: function() {
+        this._log('Disconnect anropad');
         this._cleanup();
         this.roomCode = '';
         this.isHost = false;
