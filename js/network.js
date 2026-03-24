@@ -15,6 +15,13 @@ var Network = {
      */
     createRoom: function(callback) {
         var self = this;
+
+        if (typeof Peer === 'undefined') {
+            self._statusText = 'PeerJS laddades inte — ladda om sidan (Ctrl+Shift+R)';
+            console.error('PeerJS not loaded');
+            return;
+        }
+
         self.isHost = true;
         self.roomCode = self._generateCode();
         self._statusText = t('connecting');
@@ -50,6 +57,14 @@ var Network = {
      */
     joinRoom: function(code, callback) {
         var self = this;
+
+        if (typeof Peer === 'undefined') {
+            self._statusText = 'PeerJS laddades inte — ladda om sidan (Ctrl+Shift+R)';
+            console.error('PeerJS not loaded');
+            if (callback) callback(false);
+            return;
+        }
+
         self.isHost = false;
         self.roomCode = code;
         self._statusText = t('connecting');
