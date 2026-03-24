@@ -187,9 +187,21 @@ var UI = {
         drawTextCentered(ctx, statusIcon + ' ' + statusLabel, w / 2, h * 0.7,
             '16px monospace', statusColor);
 
-        drawTextCentered(ctx, 'Esc = Avbryt', w / 2, h - 30,
+        // Klickbar Avbryt-knapp
+        var cancelX = w / 2 - 80;
+        var cancelY = h - 50;
+        ctx.globalAlpha = 0.08;
+        pixelRect(ctx, cancelX, cancelY, 160, 32, PALETTE.textMuted);
+        ctx.globalAlpha = 1.0;
+        drawTextCentered(ctx, 'Avbryt', w / 2, cancelY + 16,
             '14px monospace', PALETTE.textMuted);
+
+        registerClickRegion('lobby_cancel', cancelX, cancelY, 160, 32, function() {
+            UI._lobbyCancel = true;
+        });
     },
+
+    _lobbyCancel: false,
 
     // --- HUD ---
 

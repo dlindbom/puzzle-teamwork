@@ -115,7 +115,9 @@
         // Hantera nätverksmeddelanden
         processNetworkMessages();
 
-        if (consumePressed('Escape')) {
+        if (consumePressed('Escape') || UI._lobbyCancel) {
+            UI._lobbyCancel = false;
+            clearClickRegions();
             Network.disconnect();
             gameMode = 'solo';
             GameState.transition('menu');
