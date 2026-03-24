@@ -1,0 +1,48 @@
+{
+  "pack": "Tutorial",
+  "packId": "pack01_tutorial",
+  "levels": [
+    {
+      "id": "tut_01",
+      "name": "Första steget",
+      "description": "Lär dig röra dig på rutnätet",
+      "cols": 8,
+      "rows": 6,
+      "grid": [
+        "WWWWWWWW",
+        "W1.....W",
+        "W......W",
+        "W......W",
+        "W.....EW",
+        "WWWWWWWW"
+      ],
+      "links": {},
+      "meta": {
+        "hint": "Använd piltangenterna för att gå till utgången",
+        "par_moves": 7
+      }
+    },
+    {
+      "id": "tut_02",
+      "name": "Hinder",
+      "description": "Hitta vägen runt väggarna",
+      "cols": 10,
+      "rows": 8,
+      "grid": [
+        "WWWWWWWWWW",
+        "W1.......W",
+        "W..WWW...W",
+        "W..W.....W",
+        "W..W.WWW.W",
+        "W......W.W",
+        "W......WEW",
+        "WWWWWWWWWW"
+      ],
+      "links": {},
+      "meta": {
+        "hint": "Hitta vägen runt väggarna!",
+        "par_moves": 14
+      }
+    }
+  ]
+}

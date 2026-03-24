@@ -1,0 +1,139 @@
+// Puzzle Teamwork — Input (tangentbord + touch)
+
+const keys = {};
+const keysPressed = {};  // Sant bara på första framen tangenten trycks
+
+// Mapping: WASD → piltangenter (så båda fungerar)
+const KEY_MAP = {
+    'w': 'ArrowUp',    'W': 'ArrowUp',
+    'a': 'ArrowLeft',  'A': 'ArrowLeft',
+    's': 'ArrowDown',  'S': 'ArrowDown',
+    'd': 'ArrowRight', 'D': 'ArrowRight',
+};
+
+function setupInput(canvas) {
+    window.addEventListener('keydown', function(e) {
+        const mapped = KEY_MAP[e.key] || e.key;
+        if (!keys[mapped]) {
+            keysPressed[mapped] = true;
+        }
+        keys[mapped] = true;
+
+        // Förhindra scroll med piltangenter/space
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+            e.preventDefault();
+        }
+    });
+
+    window.addEventListener('keyup', function(e) {
+        const mapped = KEY_MAP[e.key] || e.key;
+        keys[mapped] = false;
+        keysPressed[mapped] = false;
+    });
+
+    // Touch-knappar
+    setupTouch(canvas);
+}
+
+// Kontrollera om en tangent precis trycktes (konsumeras vid anrop)
+function consumePressed(key) {
+    if (keysPressed[key]) {
+        keysPressed[key] = false;
+        return true;
+    }
+    return false;
+}
+
+// Rensa alla pressed-flaggor (anropas varje frame efter input-hantering)
+function clearPressed() {
+    for (var k in keysPressed) {
+        keysPressed[k] = false;
+    }
+}
+
+// Touch-stöd
+const touchButtons = [];
+let touchActive = false;
+
+function setupTouch(canvas) {
+    // D-pad vänster sida
+    const btnSize = 60;
+    const pad = 15;
+    const baseX = 30;
+    const baseY = CONFIG.CANVAS_HEIGHT - 180;
+
+    touchButtons.push(
+        { id: 'up',    key: 'ArrowUp',    x: baseX + btnSize + pad, y: baseY,                       w: btnSize, h: btnSize, label: '▲' },
+        { id: 'left',  key: 'ArrowLeft',  x: baseX,                  y: baseY + btnSize + pad,       w: btnSize, h: btnSize, label: '◀' },
+        { id: 'right', key: 'ArrowRight', x: baseX + (btnSize + pad) * 2, y: baseY + btnSize + pad, w: btnSize, h: btnSize, label: '▶' },
+        { id: 'down',  key: 'ArrowDown',  x: baseX + btnSize + pad, y: baseY + (btnSize + pad) * 2, w: btnSize, h: btnSize, label: '▼' }
+    );
+
+    // Bekräfta-knapp höger sida
+    touchButtons.push(
+        { id: 'confirm', key: 'Enter', x: CONFIG.CANVAS_WIDTH - 100, y: CONFIG.CANVAS_HEIGHT - 100, w: 70, h: 70, label: 'OK' }
+    );
+
+    canvas.addEventListener('touchstart', handleTouch, { passive: false });
+    canvas.addEventListener('touchmove', handleTouch, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+}
+
+function handleTouch(e) {
+    e.preventDefault();
+    touchActive = true;
+    const canvas = e.target;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = CONFIG.CANVAS_WIDTH / rect.width;
+    const scaleY = CONFIG.CANVAS_HEIGHT / rect.height;
+
+    // Nollställ alla touch-knappar
+    for (var i = 0; i < touchButtons.length; i++) {
+        var btn = touchButtons[i];
+        keys[btn.key] = false;
+    }
+
+    // Kolla vilka knappar som trycks
+    for (var ti = 0; ti < e.touches.length; ti++) {
+        var touch = e.touches[ti];
+        var tx = (touch.clientX - rect.left) * scaleX;
+        var ty = (touch.clientY - rect.top) * scaleY;
+
+        for (var bi = 0; bi < touchButtons.length; bi++) {
+            var btn = touchButtons[bi];
+            if (tx >= btn.x && tx <= btn.x + btn.w && ty >= btn.y && ty <= btn.y + btn.h) {
+                if (!keys[btn.key]) {
+                    keysPressed[btn.key] = true;
+                }
+                keys[btn.key] = true;
+            }
+        }
+    }
+}
+
+function handleTouchEnd(e) {
+    e.preventDefault();
+    if (e.touches.length === 0) {
+        for (var i = 0; i < touchButtons.length; i++) {
+            keys[touchButtons[i].key] = false;
+        }
+    }
+}
+
+// Rita touch-knappar (anropas från ui.js)
+function drawTouchButtons(ctx) {
+    if (!touchActive) return;
+
+    for (var i = 0; i < touchButtons.length; i++) {
+        var btn = touchButtons[i];
+        var pressed = keys[btn.key];
+
+        ctx.globalAlpha = pressed ? 0.6 : 0.3;
+        pixelRect(ctx, btn.x, btn.y, btn.w, btn.h, PALETTE.accent);
+
+        ctx.globalAlpha = pressed ? 1.0 : 0.7;
+        drawTextCentered(ctx, btn.label, btn.x + btn.w / 2, btn.y + btn.h / 2,
+            '20px monospace', PALETTE.text);
+    }
+    ctx.globalAlpha = 1.0;
+}
