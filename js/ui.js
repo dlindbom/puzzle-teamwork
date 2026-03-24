@@ -1,71 +1,145 @@
 // Puzzle Teamwork — UI (menyer, HUD, overlays)
 
-const UI = {
+var UI = {
     menuSelection: 0,
-    menuOptions: ['start'],
-    _menuClicked: null,  // Sätts av musklick
+    menuOptions: ['online_host', 'online_join', 'solo'],
+    _menuClicked: null,
+    showJoinInput: false,
+    joinCode: '',
 
-    /**
-     * Rita huvudmeny.
-     */
+    // --- Huvudmeny ---
+
     drawMenu: function(ctx, w, h) {
-        // Bakgrund
         Renderer.drawBackground(ctx, w, h);
 
-        // Titel
-        drawTextCentered(ctx, t('title'), w / 2, h * 0.25,
+        drawTextCentered(ctx, t('title'), w / 2, h * 0.2,
             'bold 48px monospace', PALETTE.accent);
-
-        // Undertitel
-        drawTextCentered(ctx, 'LINDBOM ARCADE', w / 2, h * 0.25 + 50,
+        drawTextCentered(ctx, 'LINDBOM ARCADE', w / 2, h * 0.2 + 50,
             '14px monospace', PALETTE.textMuted);
 
-        // Menyalternativ
+        // Kodinmatning för "Gå med"
+        if (this.showJoinInput) {
+            this._drawJoinInput(ctx, w, h);
+            return;
+        }
+
         var options = [
-            { key: 'start', label: t('start') }
+            { key: 'online_host', label: t('createRoom'), desc: 'Skapa ett rum och bjud in' },
+            { key: 'online_join', label: t('joinRoom'), desc: 'Skriv in en rumskod' },
+            { key: 'solo', label: t('practice'), desc: 'Spela ensam' },
         ];
 
-        var startY = h * 0.5;
-        var spacing = 50;
+        var startY = h * 0.42;
+        var spacing = 55;
         var self = this;
 
         for (var i = 0; i < options.length; i++) {
             var selected = (this.menuSelection === i);
             var y = startY + i * spacing;
-            var color = selected ? PALETTE.accent : PALETTE.textMuted;
+            var color = selected ? PALETTE.accent : PALETTE.text;
             var prefix = selected ? '▶ ' : '  ';
 
-            // Klickbar region för detta menyalternativ
-            var btnX = w / 2 - 150;
-            var btnY = y - 18;
-            var btnW = 300;
-            var btnH = 36;
+            var btnX = w / 2 - 170;
+            var btnY = y - 20;
+            var btnW = 340;
+            var btnH = 42;
 
-            drawTextCentered(ctx, prefix + options[i].label, w / 2, y,
-                '24px monospace', color);
-
-            // Markerings-bakgrund (alltid synlig som hover-yta)
+            // Bakgrund
             ctx.globalAlpha = selected ? 0.15 : 0.05;
-            pixelRect(ctx, btnX, btnY, btnW, btnH, PALETTE.accent);
+            pixelRect(ctx, btnX, btnY, btnW, btnH, selected ? PALETTE.accent : PALETTE.text);
             ctx.globalAlpha = 1.0;
 
-            // Registrera klickregion
-            (function(optionKey) {
+            drawTextCentered(ctx, prefix + options[i].label, w / 2, y,
+                '20px monospace', color);
+
+            // Beskrivning
+            drawTextCentered(ctx, options[i].desc, w / 2, y + 16,
+                '11px monospace', PALETTE.textMuted);
+
+            // Klickregion
+            (function(optionKey, idx) {
                 registerClickRegion('menu_' + optionKey, btnX, btnY, btnW, btnH, function() {
+                    self.menuSelection = idx;
                     self._menuClicked = optionKey;
                 });
-            })(options[i].key);
+            })(options[i].key, i);
         }
 
-        // Kontroller-hint
         drawTextCentered(ctx, 'Klicka eller tryck Enter', w / 2, h - 30,
             '14px monospace', PALETTE.textMuted);
     },
 
-    /**
-     * Hantera meny-input. Returnerar valt alternativ eller null.
-     */
+    _drawJoinInput: function(ctx, w, h) {
+        var self = this;
+        var y = h * 0.5;
+
+        drawTextCentered(ctx, t('enterCode'), w / 2, y - 50,
+            '20px monospace', PALETTE.text);
+
+        // Kod-rutor
+        var boxSize = 50;
+        var gap = 12;
+        var totalW = 4 * boxSize + 3 * gap;
+        var startX = (w - totalW) / 2;
+
+        for (var i = 0; i < 4; i++) {
+            var bx = startX + i * (boxSize + gap);
+            var ch = this.joinCode[i] || '';
+
+            ctx.strokeStyle = i === this.joinCode.length ? PALETTE.accent : PALETTE.textMuted;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(bx, y - 25, boxSize, boxSize);
+
+            if (ch) {
+                drawTextCentered(ctx, ch, bx + boxSize / 2, y,
+                    'bold 28px monospace', PALETTE.accent);
+            }
+        }
+
+        // Bekräfta-knapp
+        if (this.joinCode.length === 4) {
+            var btnY = y + 50;
+            ctx.globalAlpha = 0.15;
+            pixelRect(ctx, w / 2 - 100, btnY, 200, 40, PALETTE.accent);
+            ctx.globalAlpha = 1.0;
+            drawTextCentered(ctx, '▶ Anslut', w / 2, btnY + 20,
+                '20px monospace', PALETTE.accent);
+
+            registerClickRegion('join_confirm', w / 2 - 100, btnY, 200, 40, function() {
+                self._menuClicked = 'join_confirm';
+            });
+        }
+
+        // Tillbaka
+        drawTextCentered(ctx, 'Esc = Tillbaka', w / 2, h - 30,
+            '14px monospace', PALETTE.textMuted);
+
+        // Hantera tangentbordsinmatning för kod
+        for (var ci = 65; ci <= 90; ci++) { // A-Z
+            var letter = String.fromCharCode(ci);
+            if (consumePressed(letter) || consumePressed(letter.toLowerCase())) {
+                if (this.joinCode.length < 4) {
+                    this.joinCode += letter;
+                }
+            }
+        }
+        if (consumePressed('Backspace')) {
+            this.joinCode = this.joinCode.slice(0, -1);
+        }
+        if (consumePressed('Escape')) {
+            this.showJoinInput = false;
+            this.joinCode = '';
+        }
+    },
+
     updateMenu: function() {
+        if (this.showJoinInput) {
+            if (consumePressed('Enter') && this.joinCode.length === 4) {
+                return 'join_confirm';
+            }
+            return null;
+        }
+
         if (consumePressed('ArrowUp')) {
             this.menuSelection = Math.max(0, this.menuSelection - 1);
         }
@@ -75,7 +149,6 @@ const UI = {
         if (consumePressed('Enter') || consumePressed(' ')) {
             return this.menuOptions[this.menuSelection];
         }
-        // Musklick
         if (this._menuClicked) {
             var choice = this._menuClicked;
             this._menuClicked = null;
@@ -84,15 +157,46 @@ const UI = {
         return null;
     },
 
-    /**
-     * Rita HUD under spel.
-     */
+    // --- Lobby ---
+
+    drawLobby: function(ctx, w, h) {
+        Renderer.drawBackground(ctx, w, h);
+
+        drawTextCentered(ctx, t('title'), w / 2, h * 0.15,
+            'bold 36px monospace', PALETTE.accent);
+
+        if (Network.isHost) {
+            drawTextCentered(ctx, t('roomCode') + ':', w / 2, h * 0.35,
+                '18px monospace', PALETTE.textMuted);
+
+            // Stor rumskod
+            drawTextCentered(ctx, Network.roomCode, w / 2, h * 0.45,
+                'bold 64px monospace', PALETTE.accent);
+
+            drawTextCentered(ctx, 'Dela koden med din medspelare', w / 2, h * 0.55,
+                '14px monospace', PALETTE.textMuted);
+        } else {
+            drawTextCentered(ctx, t('connecting'), w / 2, h * 0.4,
+                '20px monospace', PALETTE.textMuted);
+        }
+
+        // Anslutningsstatus
+        var statusColor = Network.connected ? '#22c55e' : PALETTE.textWarn;
+        var statusIcon = Network.connected ? '●' : '○';
+        var statusLabel = Network.connected ? t('connected') + ' — Startar...' : t('waiting');
+        drawTextCentered(ctx, statusIcon + ' ' + statusLabel, w / 2, h * 0.7,
+            '16px monospace', statusColor);
+
+        drawTextCentered(ctx, 'Esc = Avbryt', w / 2, h - 30,
+            '14px monospace', PALETTE.textMuted);
+    },
+
+    // --- HUD ---
+
     drawHUD: function(ctx, w, h, level, moveCount) {
-        // Bannamn uppe till vänster
         var name = level.name || (t('level') + ' ' + (LevelManager.currentLevelIndex + 1));
         drawText(ctx, name, 10, 20, '16px monospace', PALETTE.text);
 
-        // Dragräknare uppe till höger
         var movesText = t('moves') + ': ' + moveCount;
         ctx.font = '16px monospace';
         ctx.textAlign = 'right';
@@ -100,33 +204,28 @@ const UI = {
         ctx.textBaseline = 'middle';
         ctx.fillText(movesText, w - 10, 20);
 
-        // Par (om det finns)
         if (level.meta && level.meta.par_moves) {
             ctx.fillText(t('par') + ': ' + level.meta.par_moves, w - 10, 40);
         }
 
-        // Hint (första sekunderna)
         if (level.meta && level.meta.hint && GameState.stateTimer < 5000) {
             var alpha = GameState.stateTimer < 4000 ? 1 : 1 - (GameState.stateTimer - 4000) / 1000;
             ctx.globalAlpha = alpha;
-            drawTextCentered(ctx, level.meta.hint, w / 2, h - 30,
+            drawTextCentered(ctx, level.meta.hint, w / 2, h - 50,
                 '14px monospace', PALETTE.textMuted);
             ctx.globalAlpha = 1.0;
         }
     },
 
+    // --- Vinst ---
+
     _victoryClicked: null,
 
-    /**
-     * Rita vinst-skärm.
-     */
     drawVictory: function(ctx, w, h, moveCount, parMoves) {
         var self = this;
 
-        // Overlay
         pixelRect(ctx, 0, 0, w, h, PALETTE.overlay);
 
-        // Text
         drawTextCentered(ctx, t('levelComplete'), w / 2, h * 0.3,
             'bold 40px monospace', PALETTE.accent);
 
@@ -139,42 +238,31 @@ const UI = {
                 '18px monospace', color);
         }
 
-        // Nästa bana-knapp (klickbar)
+        // Nästa bana
         var nextBtnX = w / 2 - 120;
         var nextBtnY = h * 0.66;
-        var nextBtnW = 240;
-        var nextBtnH = 40;
-
         ctx.globalAlpha = 0.15;
-        pixelRect(ctx, nextBtnX, nextBtnY, nextBtnW, nextBtnH, PALETTE.accent);
+        pixelRect(ctx, nextBtnX, nextBtnY, 240, 40, PALETTE.accent);
         ctx.globalAlpha = 1.0;
-        drawTextCentered(ctx, '▶ ' + t('nextLevel'), w / 2, nextBtnY + nextBtnH / 2,
+        drawTextCentered(ctx, '▶ ' + t('nextLevel'), w / 2, nextBtnY + 20,
             '18px monospace', PALETTE.accent);
-
-        registerClickRegion('victory_next', nextBtnX, nextBtnY, nextBtnW, nextBtnH, function() {
+        registerClickRegion('victory_next', nextBtnX, nextBtnY, 240, 40, function() {
             self._victoryClicked = 'next';
         });
 
-        // Tillbaka-knapp (klickbar)
+        // Tillbaka
         var backBtnX = w / 2 - 80;
         var backBtnY = h * 0.75;
-        var backBtnW = 160;
-        var backBtnH = 30;
-
         ctx.globalAlpha = 0.08;
-        pixelRect(ctx, backBtnX, backBtnY, backBtnW, backBtnH, PALETTE.textMuted);
+        pixelRect(ctx, backBtnX, backBtnY, 160, 30, PALETTE.textMuted);
         ctx.globalAlpha = 1.0;
-        drawTextCentered(ctx, t('backToMenu'), w / 2, backBtnY + backBtnH / 2,
+        drawTextCentered(ctx, t('backToMenu'), w / 2, backBtnY + 15,
             '14px monospace', PALETTE.textMuted);
-
-        registerClickRegion('victory_back', backBtnX, backBtnY, backBtnW, backBtnH, function() {
+        registerClickRegion('victory_back', backBtnX, backBtnY, 160, 30, function() {
             self._victoryClicked = 'back';
         });
     },
 
-    /**
-     * Rita touch-knappar om touch är aktivt.
-     */
     drawTouch: function(ctx) {
         drawTouchButtons(ctx);
     }

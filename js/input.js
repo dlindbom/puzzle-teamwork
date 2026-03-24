@@ -3,32 +3,27 @@
 const keys = {};
 const keysPressed = {};  // Sant bara på första framen tangenten trycks
 
-// Mapping: WASD → piltangenter (så båda fungerar)
-const KEY_MAP = {
-    'w': 'ArrowUp',    'W': 'ArrowUp',
-    'a': 'ArrowLeft',  'A': 'ArrowLeft',
-    's': 'ArrowDown',  'S': 'ArrowDown',
-    'd': 'ArrowRight', 'D': 'ArrowRight',
-};
+// Ingen WASD-mapping — bokstäver används direkt
+// (WASD kan användas som alias i game.js vid solo-läge)
 
 function setupInput(canvas) {
     window.addEventListener('keydown', function(e) {
-        const mapped = KEY_MAP[e.key] || e.key;
-        if (!keys[mapped]) {
-            keysPressed[mapped] = true;
+        var key = e.key;
+        if (!keys[key]) {
+            keysPressed[key] = true;
         }
-        keys[mapped] = true;
+        keys[key] = true;
 
         // Förhindra scroll med piltangenter/space
-        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(key)) {
             e.preventDefault();
         }
     });
 
     window.addEventListener('keyup', function(e) {
-        const mapped = KEY_MAP[e.key] || e.key;
-        keys[mapped] = false;
-        keysPressed[mapped] = false;
+        var key = e.key;
+        keys[key] = false;
+        keysPressed[key] = false;
     });
 
     // Touch-knappar

@@ -5,43 +5,116 @@
     {
       "id": "tut_01",
       "name": "Första steget",
-      "description": "Lär dig röra dig på rutnätet",
+      "description": "Hitta vägen till utgången",
       "cols": 8,
       "rows": 6,
       "grid": [
         "WWWWWWWW",
-        "W1.....W",
+        "W1....2W",
         "W......W",
         "W......W",
-        "W.....EW",
+        "WE....EW",
         "WWWWWWWW"
       ],
       "links": {},
       "meta": {
-        "hint": "Använd piltangenterna för att gå till utgången",
-        "par_moves": 7
+        "hint": "Gå till utgångarna (cyan rutor)",
+        "par_moves": 4
       }
     },
     {
       "id": "tut_02",
-      "name": "Hinder",
+      "name": "Runt hörnet",
       "description": "Hitta vägen runt väggarna",
       "cols": 10,
-      "rows": 8,
+      "rows": 7,
       "grid": [
         "WWWWWWWWWW",
-        "W1.......W",
-        "W..WWW...W",
-        "W..W.....W",
-        "W..W.WWW.W",
-        "W......W.W",
-        "W......WEW",
+        "W1..WWWW2W",
+        "W...W....W",
+        "W...W....W",
+        "W........W",
+        "WE..WWWWEW",
         "WWWWWWWWWW"
       ],
       "links": {},
       "meta": {
         "hint": "Hitta vägen runt väggarna!",
+        "par_moves": 8
+      }
+    },
+    {
+      "id": "tut_03",
+      "name": "Knappen",
+      "description": "En trycker, en går igenom",
+      "cols": 10,
+      "rows": 7,
+      "grid": [
+        "WWWWWWWWWW",
+        "W1...BWD.W",
+        "W....WWWEW",
+        "W........W",
+        "W........W",
+        "WE...2...W",
+        "WWWWWWWWWW"
+      ],
+      "links": {
+        "B@1,5": ["D@1,6"]
+      },
+      "meta": {
+        "hint": "P1 trycker på knappen — dörren öppnas för P2!",
+        "par_moves": 10
+      }
+    },
+    {
+      "id": "tut_04",
+      "name": "Samarbete",
+      "description": "Båda måste hjälpa varandra",
+      "cols": 10,
+      "rows": 8,
+      "grid": [
+        "WWWWWWWWWW",
+        "W1.B.W.E2W",
+        "W....D...W",
+        "WWWWWW...W",
+        "W........W",
+        "W...WWWWWW",
+        "WE..D.B..W",
+        "WWWWWWWWWW"
+      ],
+      "links": {
+        "B@1,3": ["D@2,4"],
+        "B@6,6": ["D@6,4"]
+      },
+      "meta": {
+        "hint": "Turas om att trycka knappar åt varandra!",
         "par_moves": 14
+      }
+    },
+    {
+      "id": "tut_05",
+      "name": "Labyrinten",
+      "description": "Navigera labyrinten tillsammans",
+      "cols": 12,
+      "rows": 9,
+      "grid": [
+        "WWWWWWWWWWWW",
+        "W1...W.....W",
+        "W.WW.W.WWW.W",
+        "W.W..B.D.W.W",
+        "W.W.WWWW.W.W",
+        "W.W......W.W",
+        "W.WWWWWD.W2W",
+        "WE.......WEW",
+        "WWWWWWWWWWWW"
+      ],
+      "links": {
+        "B@3,5": ["D@3,6"],
+        "B@3,5": ["D@3,6", "D@6,7"]
+      },
+      "meta": {
+        "hint": "En knapp kan öppna flera dörrar!",
+        "par_moves": 18
       }
     }
   ]
