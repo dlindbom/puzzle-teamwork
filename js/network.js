@@ -9,6 +9,7 @@ var Network = {
     _messageQueue: [],
     _onConnectCallback: null,
     _statusText: '',
+    _error: '',
 
     /**
      * Skapa ett rum (host).
@@ -17,18 +18,26 @@ var Network = {
         var self = this;
 
         if (typeof Peer === 'undefined') {
-            self._statusText = 'PeerJS laddades inte — ladda om sidan (Ctrl+Shift+R)';
-            console.error('PeerJS not loaded');
+            self._error = 'PeerJS kunde inte laddas. Ladda om sidan med Ctrl+Shift+R';
+            if (callback) callback();
             return;
         }
+
+        // Rensa eventuell gammal anslutning
+        self._cleanup();
 
         self.isHost = true;
         self.roomCode = self._generateCode();
         self._statusText = t('connecting');
+        self._error = '';
 
-        self.peer = new Peer('puzzleteam-' + self.roomCode, {
-            debug: 0
-        });
+        try {
+            self.peer = new Peer('puzzleteam-' + self.roomCode, { debug: 0 });
+        } catch (e) {
+            self._error = 'Kunde inte skapa rum: ' + e.message;
+            if (callback) callback();
+            return;
+        }
 
         self.peer.on('open', function() {
             self._statusText = t('roomCode') + ': ' + self.roomCode;
@@ -41,13 +50,23 @@ var Network = {
         });
 
         self.peer.on('error', function(err) {
-            console.error('PeerJS error:', err);
-            self._statusText = 'Fel: ' + err.type;
-            // Om rumskoden redan är tagen, generera ny
+            console.error('PeerJS host error:', err);
             if (err.type === 'unavailable-id') {
+                // Rumskoden var tagen — försök igen med ny kod
                 self.roomCode = self._generateCode();
-                self.peer.destroy();
+                if (self.peer) self.peer.destroy();
+                self.peer = null;
                 self.createRoom(callback);
+            } else {
+                self._error = 'Anslutningsfel: ' + (err.type || err.message || 'okänt');
+                self._statusText = self._error;
+            }
+        });
+
+        self.peer.on('disconnected', function() {
+            // Försök återansluta
+            if (self.peer && !self.peer.destroyed) {
+                self.peer.reconnect();
             }
         });
     },
@@ -59,31 +78,106 @@ var Network = {
         var self = this;
 
         if (typeof Peer === 'undefined') {
-            self._statusText = 'PeerJS laddades inte — ladda om sidan (Ctrl+Shift+R)';
-            console.error('PeerJS not loaded');
+            self._error = 'PeerJS kunde inte laddas. Ladda om sidan med Ctrl+Shift+R';
             if (callback) callback(false);
             return;
         }
 
+        // Rensa eventuell gammal anslutning
+        self._cleanup();
+
         self.isHost = false;
         self.roomCode = code;
         self._statusText = t('connecting');
+        self._error = '';
 
-        self.peer = new Peer(null, { debug: 0 });
+        try {
+            self.peer = new Peer(null, { debug: 0 });
+        } catch (e) {
+            self._error = 'Kunde inte ansluta: ' + e.message;
+            if (callback) callback(false);
+            return;
+        }
 
         self.peer.on('open', function() {
-            var conn = self.peer.connect('puzzleteam-' + code, {
-                reliable: true
-            });
+            var conn;
+            try {
+                conn = self.peer.connect('puzzleteam-' + code, { reliable: true });
+            } catch (e) {
+                self._error = 'Kunde inte ansluta till rum ' + code;
+                if (callback) callback(false);
+                return;
+            }
+
             self.conn = conn;
-            self._setupConnection(conn);
-            self._onConnectCallback = callback;
+
+            // Timeout: om anslutningen inte öppnas inom 8 sekunder
+            var connectTimeout = setTimeout(function() {
+                if (!self.connected) {
+                    self._error = 'Timeout — kunde inte nå rum ' + code + '. Kontrollera koden.';
+                    self._statusText = self._error;
+                    if (callback) {
+                        callback(false);
+                        callback = null; // Förhindra dubbelanrop
+                    }
+                }
+            }, 8000);
+
+            conn.on('open', function() {
+                clearTimeout(connectTimeout);
+                self.connected = true;
+                self._statusText = t('connected');
+                self._error = '';
+
+                // Skicka hello
+                conn.send({ type: 'hello', playerName: 'P2' });
+
+                if (callback) {
+                    callback(true);
+                    callback = null;
+                }
+                if (window._gameOnConnect) window._gameOnConnect();
+            });
+
+            conn.on('data', function(data) {
+                self._messageQueue.push(data);
+            });
+
+            conn.on('close', function() {
+                clearTimeout(connectTimeout);
+                self.connected = false;
+                self._statusText = t('disconnected');
+            });
+
+            conn.on('error', function(err) {
+                clearTimeout(connectTimeout);
+                console.error('Connection error:', err);
+                self.connected = false;
+                self._error = 'Anslutningsfel: ' + (err.type || err.message || 'okänt');
+                self._statusText = self._error;
+                if (callback) {
+                    callback(false);
+                    callback = null;
+                }
+            });
         });
 
         self.peer.on('error', function(err) {
-            console.error('PeerJS error:', err);
-            self._statusText = 'Kunde inte ansluta';
-            if (callback) callback(false);
+            console.error('PeerJS guest error:', err);
+            var msg = 'Kunde inte ansluta';
+            if (err.type === 'peer-unavailable') {
+                msg = 'Rum "' + code + '" hittades inte. Kontrollera koden.';
+            } else if (err.type === 'network') {
+                msg = 'Nätverksfel — kontrollera din internetanslutning.';
+            } else {
+                msg = 'Fel: ' + (err.type || err.message);
+            }
+            self._error = msg;
+            self._statusText = msg;
+            if (callback) {
+                callback(false);
+                callback = null;
+            }
         });
     },
 
@@ -93,17 +187,12 @@ var Network = {
         conn.on('open', function() {
             self.connected = true;
             self._statusText = t('connected');
-
-            if (!self.isHost) {
-                // Gäst: skicka hello
-                conn.send({ type: 'hello', playerName: 'P2' });
-            }
+            self._error = '';
 
             if (self._onConnectCallback) {
                 self._onConnectCallback(true);
                 self._onConnectCallback = null;
             }
-
             if (window._gameOnConnect) window._gameOnConnect();
         });
 
@@ -122,18 +211,12 @@ var Network = {
         });
     },
 
-    /**
-     * Skicka meddelande till peer.
-     */
     send: function(msg) {
         if (this.conn && this.conn.open) {
             this.conn.send(msg);
         }
     },
 
-    /**
-     * Hämta och tömma meddelandekön.
-     */
     getMessages: function() {
         var msgs = this._messageQueue;
         this._messageQueue = [];
@@ -141,31 +224,40 @@ var Network = {
     },
 
     /**
-     * Koppla ner.
+     * Intern cleanup utan att nollställa allt.
      */
-    disconnect: function() {
-        this.connected = false;
+    _cleanup: function() {
         if (this.conn) {
-            this.conn.close();
+            try { this.conn.close(); } catch(e) {}
             this.conn = null;
         }
         if (this.peer) {
-            this.peer.destroy();
+            try { this.peer.destroy(); } catch(e) {}
             this.peer = null;
         }
-        this.roomCode = '';
-        this._statusText = '';
+        this.connected = false;
         this._messageQueue = [];
+    },
+
+    /**
+     * Koppla ner helt.
+     */
+    disconnect: function() {
+        this._cleanup();
+        this.roomCode = '';
+        this.isHost = false;
+        this._statusText = '';
+        this._error = '';
     },
 
     getStatus: function() {
         if (this.connected) return 'connected';
-        if (this.peer) return 'waiting';
+        if (this.peer && !this.peer.destroyed) return 'waiting';
         return 'idle';
     },
 
     _generateCode: function() {
-        var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // Inga I, O (förväxling)
+        var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
         var code = '';
         for (var i = 0; i < 4; i++) {
             code += chars[Math.floor(Math.random() * chars.length)];

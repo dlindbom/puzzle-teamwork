@@ -85,9 +85,19 @@
             var code = UI.joinCode.toUpperCase().trim();
             if (code.length === 4) {
                 UI.showJoinInput = false;
+                UI.joinStatus = 'connecting';
                 Network.joinRoom(code, function(success) {
                     if (success) {
+                        UI.joinStatus = '';
                         GameState.transition('lobby');
+                    } else {
+                        // Misslyckades — visa fel och låt användaren försöka igen
+                        UI.joinStatus = 'error';
+                        UI.joinError = Network._error || 'Kunde inte ansluta';
+                        UI.showJoinInput = true;
+                        UI.joinCode = '';
+                        Network.disconnect();
+                        gameMode = 'solo';
                     }
                 });
             }

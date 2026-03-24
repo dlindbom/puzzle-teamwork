@@ -6,6 +6,8 @@ var UI = {
     _menuClicked: null,
     showJoinInput: false,
     joinCode: '',
+    joinStatus: '',    // '', 'connecting', 'error'
+    joinError: '',
 
     // --- Huvudmeny ---
 
@@ -96,9 +98,23 @@ var UI = {
             }
         }
 
+        // Felmeddelande
+        if (this.joinStatus === 'error' && this.joinError) {
+            drawTextCentered(ctx, this.joinError, w / 2, y + 45,
+                '13px monospace', PALETTE.textWarn);
+            drawTextCentered(ctx, 'Försök igen!', w / 2, y + 62,
+                '12px monospace', PALETTE.textMuted);
+        }
+
+        // Connecting-status
+        if (this.joinStatus === 'connecting') {
+            drawTextCentered(ctx, t('connecting'), w / 2, y + 50,
+                '16px monospace', PALETTE.accent);
+        }
+
         // Bekräfta-knapp
-        if (this.joinCode.length === 4) {
-            var btnY = y + 50;
+        if (this.joinCode.length === 4 && this.joinStatus !== 'connecting') {
+            var btnY = y + 80;
             ctx.globalAlpha = 0.15;
             pixelRect(ctx, w / 2 - 100, btnY, 200, 40, PALETTE.accent);
             ctx.globalAlpha = 1.0;
@@ -110,9 +126,19 @@ var UI = {
             });
         }
 
-        // Tillbaka
-        drawTextCentered(ctx, 'Esc = Tillbaka', w / 2, h - 30,
+        // Tillbaka-knapp (klickbar)
+        var backY = h - 45;
+        ctx.globalAlpha = 0.08;
+        pixelRect(ctx, w / 2 - 80, backY, 160, 32, PALETTE.textMuted);
+        ctx.globalAlpha = 1.0;
+        drawTextCentered(ctx, 'Tillbaka', w / 2, backY + 16,
             '14px monospace', PALETTE.textMuted);
+        registerClickRegion('join_back', w / 2 - 80, backY, 160, 32, function() {
+            self.showJoinInput = false;
+            self.joinCode = '';
+            self.joinStatus = '';
+            self.joinError = '';
+        });
 
         // Hantera tangentbordsinmatning för kod
         for (var ci = 65; ci <= 90; ci++) { // A-Z
@@ -129,6 +155,9 @@ var UI = {
         if (consumePressed('Escape')) {
             this.showJoinInput = false;
             this.joinCode = '';
+            this.joinStatus = '';
+            this.joinError = '';
+            Network.disconnect();
         }
     },
 
