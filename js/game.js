@@ -81,6 +81,9 @@
         var level = LevelManager.loadLevel(packIndex, levelIndex);
         if (!level) return;
 
+        // Rensa meny-klickregioner
+        clearClickRegions();
+
         // Centrera kamera
         Camera.center(level.cols, level.rows, CONFIG.TILE_SIZE,
             canvas.width, canvas.height);
@@ -159,26 +162,43 @@
 
     // --- Vinst ---
 
+    function goToNextLevel() {
+        clearClickRegions();
+        var next = LevelManager.nextLevel();
+        if (next) {
+            Camera.center(next.cols, next.rows, CONFIG.TILE_SIZE,
+                canvas.width, canvas.height);
+            players = [];
+            if (next.spawns.p1) {
+                players.push(new Player(0, next.spawns.p1.row, next.spawns.p1.col));
+            }
+            moveCount = 0;
+            GameState.transition('playing');
+        } else {
+            GameState.transition('menu');
+        }
+    }
+
+    function goToMenu() {
+        clearClickRegions();
+        GameState.transition('menu');
+    }
+
     function updateVictory() {
         if (consumePressed('Enter') || consumePressed(' ')) {
-            // Nästa bana
-            var next = LevelManager.nextLevel();
-            if (next) {
-                Camera.center(next.cols, next.rows, CONFIG.TILE_SIZE,
-                    canvas.width, canvas.height);
-                players = [];
-                if (next.spawns.p1) {
-                    players.push(new Player(0, next.spawns.p1.row, next.spawns.p1.col));
-                }
-                moveCount = 0;
-                GameState.transition('playing');
-            } else {
-                // Inga fler banor — tillbaka till meny
-                GameState.transition('menu');
-            }
+            goToNextLevel();
         }
         if (consumePressed('Escape')) {
-            GameState.transition('menu');
+            goToMenu();
+        }
+        // Musklick
+        if (UI._victoryClicked === 'next') {
+            UI._victoryClicked = null;
+            goToNextLevel();
+        }
+        if (UI._victoryClicked === 'back') {
+            UI._victoryClicked = null;
+            goToMenu();
         }
     }
 

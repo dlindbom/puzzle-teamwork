@@ -33,6 +33,9 @@ function setupInput(canvas) {
 
     // Touch-knappar
     setupTouch(canvas);
+
+    // Musklick
+    setupMouse(canvas);
 }
 
 // Kontrollera om en tangent precis trycktes (konsumeras vid anrop)
@@ -49,6 +52,48 @@ function clearPressed() {
     for (var k in keysPressed) {
         keysPressed[k] = false;
     }
+}
+
+// Musklick-stöd
+const clickRegions = [];  // { id, x, y, w, h, callback }
+
+function registerClickRegion(id, x, y, w, h, callback) {
+    // Uppdatera om redan finns, annars lägg till
+    for (var i = 0; i < clickRegions.length; i++) {
+        if (clickRegions[i].id === id) {
+            clickRegions[i].x = x;
+            clickRegions[i].y = y;
+            clickRegions[i].w = w;
+            clickRegions[i].h = h;
+            clickRegions[i].callback = callback;
+            return;
+        }
+    }
+    clickRegions.push({ id: id, x: x, y: y, w: w, h: h, callback: callback });
+}
+
+function clearClickRegions() {
+    clickRegions.length = 0;
+}
+
+function setupMouse(canvas) {
+    canvas.style.cursor = 'pointer';
+
+    canvas.addEventListener('click', function(e) {
+        var rect = canvas.getBoundingClientRect();
+        var scaleX = CONFIG.CANVAS_WIDTH / rect.width;
+        var scaleY = CONFIG.CANVAS_HEIGHT / rect.height;
+        var mx = (e.clientX - rect.left) * scaleX;
+        var my = (e.clientY - rect.top) * scaleY;
+
+        for (var i = 0; i < clickRegions.length; i++) {
+            var r = clickRegions[i];
+            if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+                r.callback();
+                return;
+            }
+        }
+    });
 }
 
 // Touch-stöd
